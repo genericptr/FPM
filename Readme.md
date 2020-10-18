@@ -14,7 +14,7 @@ FPM uses [TOML](http://toml.io) config files to build an FPC command line. You c
   configuration = "debug"
 
   unitPaths = [
-    "${MY_UNITS}/untits"
+    "${MY_UNITS}/units"
   ]
   includePaths = []
   libraryPaths = []
