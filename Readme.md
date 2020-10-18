@@ -1,3 +1,4 @@
+
 # FPM - Free Pascal Maker
 
 Yet another FPC make system.
@@ -46,7 +47,7 @@ Features:
 
 ### How to install:
 
-  `make all install` will install  `fpm` into `/usr/local/bin/fpm`
+  `cd` into `/build` then do `make all install` which will install  `fpm` into `/usr/local/bin/fpm`
 
 ### Usage:
   
@@ -55,7 +56,7 @@ Features:
 
 ### ⛓ Dependencies:
 
- - FPC 3.3.1 (trunk) or higher
+ - Free Pascal Compiler 3.2 or higher
  - [fpTOML](https://github.com/genericptr/fpTOML)
 
 ### 🛠 TODO:

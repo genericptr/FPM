@@ -41,8 +41,6 @@ end;
 var
   config: TFPMConfig;
   exitCode: integer;
-  s: string;
-  t: TDateTime;
 begin
   config := TFPMConfig.Create(GetInput);
   exitCode := config.Execute;

@@ -45,12 +45,34 @@ const
 
 procedure PrintColor(code: byte; str: ansistring);
 procedure PrintColor(codes: array of byte; str: ansistring);
+function GetFileAsString(const path: Ansistring): Ansistring;
 
 implementation
 
 var
   LatestCompiler: ShortString = '';
   PlatformSDK: string = '';
+
+// TODO: GetFileAsString is part of the RTL in 3.3.1 trunk so we can remove it
+// when the next post 3.2 release is available
+
+function GetFileAsString(const path: Ansistring): Ansistring;
+var
+  f: File;
+begin
+  Assert(FileExists(path), 'file '+path+' doesnt''t exist');
+  try
+    AssignFile(f, path);
+    FileMode := fmOpenRead;
+    Reset(f, 1);
+    SetLength(result, FileSize(f));
+    BlockRead(f, pointer(result)^, FileSize(f));
+    CloseFile(f);
+  except
+    on E:Exception do
+      writeln(path+': ', E.Message);
+  end;
+end;
 
 procedure PrintColor(code: byte; str: ansistring);
 begin
