@@ -1,0 +1,10 @@
+# Specify filepatterns you want git to ignore.
+
+/output
+.vscode
+TOML
+FPM
+Makefile
+symbols.db
+*.code-*
+*.sublime-*
