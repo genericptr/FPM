@@ -56,7 +56,7 @@ Features:
 ### ⛓ Dependencies:
 
  - FPC 3.3.1 (trunk) or higher
- - TOML parser (https://github.com/genericptr/fpTOML)
+ - [fpTOML](https://github.com/genericptr/fpTOML)
 
 ### 🛠 TODO:
 
