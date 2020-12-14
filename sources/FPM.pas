@@ -8,47 +8,53 @@
 	- Parse command line options and have -r flag to run the executable
 	- Use resource strings (https://freepascal.org/docs-html/ref/refse11.html) for error messages
 	- Give warnings for undefined keys so users can't clutter the config
+
+
+	Library targets:
+
+		https://wiki.freepascal.org/macOS_Static_Libraries
+		libtool -static -o libtest.a test.o
+	
+		dynamic?
+		https://wiki.lazarus.freepascal.org/macOS_Dynamic_Libraries
+
+		framework?
+
+	Better variables:
+	
+		ARCH = FPM_HOST_SYSTEM_PROCESSOR
+		LATEST = FPM_COMPILER_LATEST
+	
+		FPM_HOST_SYSTEM_NAME = uname
+
+		PMAKE_HOST_SYSTEM_PROCESSOR
+		PMAKE_HOST_SYSTEM_NAME
+
 }
 
 program FPM;
 uses
-	FPMConfig, FPMUtils,
+	FPMConfig, FPMUtils, FPMResources,
 	TOML, 
 	SysUtils, Classes, DateUtils;
-
-function GetInput: string;
-var
-	input: string;
-begin
-	input := ParamStr(1);
-	input := ExpandFileName(input);
-	
-	if input = '' then
-		begin
-			writeln('FPM expects a valid directory or fpconfig.toml file.');
-			halt;
-		end;
-
-	if not FileExists(input) and not DirectoryExists(input) then
-		begin
-			writeln('"'+input+'" does not exist. FPM expects a valid directory or fpconfig.toml file.');
-			halt;
-		end;
-
-	result := input;
-end;
 
 var
   config: TFPMConfig;
   exitCode: integer;
+  flag: string;
 begin
+
+	// set configuration overrides
+	if GetCommandLineArgument('target', flag) then
+		GlobalSettings.target := flag;
+
+	if GetCommandLineArgument('configuration', flag) then
+		GlobalSettings.configuration := flag;
+
+	if GetCommandLineArgument('run') then
+		GlobalSettings.run := true;
+
   config := TFPMConfig.Create(GetInput);
-  exitCode := config.Execute;
-  if exitCode = 0 then
-  	begin
-  		// todo: this must be an option to FPM -r
-  		//ExecuteProcess(builder.executable, '', []);
-  	end
-  else
-	  halt(exitCode);
+  exitCode := config.Execute(config.GetCommandLine);
+	halt(exitCode);
 end.

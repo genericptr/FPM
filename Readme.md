@@ -1,9 +1,9 @@
 
-# FPM - Free Pascal Maker
+# FPM - Free Pascal Make
 
 Yet another FPC make system.
 
-FPM uses [TOML](http://toml.io) config files to build an FPC command line. You can use FPM with or instead of make or  batch files.
+FPM uses [TOML](http://toml.io) config files to build an FPC command line in a declarative syntax. You can use FPM with or instead of make or  batch files.
 
 ```toml
 [variables]
