@@ -5,13 +5,13 @@
 unit FPMTarget;
 interface
 uses
-  SysUtils, FGL,
+  SysUtils, FGL, Process,
   TOML, FPMTable, FPMScript, FPMUtils;
 
 type
   
   { TFPMTarget }
-
+  TFPMTargetClass = class of TFPMTarget;
   TFPMTarget = class
     private
       m_name: ShortString;
@@ -26,6 +26,7 @@ type
     public
 
       { Constructors }
+      class function Find(_name: string): TFPMTargetClass;
       class function InheritedFrom(_name: ShortString; _data: TTOMLTable; _parent: TFPMTarget): TFPMTarget;
       constructor Create(_name: ShortString; _data: TTOMLTable; _parent: TFPMTarget);
       destructor Destroy; override;
@@ -39,7 +40,6 @@ type
       property Name: ShortString read m_name;
       property Product: string read GetProduct;
   end;
-  TFPMTargetClass = class of TFPMTarget;
   TFPMTargetMap = specialize TFPGMap<ShortString, TFPMTargetClass>;
 
   { TFPMTargetConsole }
@@ -58,14 +58,13 @@ type
 
   { TFPMTargetLibrary }
 
-  TFPMTargetLibrary = class(TFPMTargetDarwin)
-    procedure AfterConstruction; override;
+  TFPMTargetLibrary = class(TFPMTarget)
+    procedure Finalize; override;
     function GetProduct: string; override;
   end;
 
 implementation
 uses
-  Process,
   FPMResources;
 
 var
@@ -78,17 +77,22 @@ begin
   result := ExpandPath(table['product']);
 end;
 
-procedure TFPMTargetLibrary.AfterConstruction;
+procedure TFPMTargetLibrary.Finalize;
+var
+  args: TStringArray;
 begin
   inherited;
-  RegisterScript(TFPMScript.Create('libtool -static -o '+string(table['product'])+' ${OUTPUT}/*.o'));
+
+  PrintColor(ANSI_FORE_MAGENTA, 'Build library: '+Product);
+
+  args := ['libtool', '-static', '-o', Product, ReplaceVariables('${OUTPUT}/*.o')];
+  RunCommand('/bin/sh', ['-c', args.Join(' ')]);
 end;
 
 { TFPMTargetDarwin }
 
 {
   @rpath
-
   https://wincent.com/wiki/@executable_path,_@load_path_and_@rpath
   https://www.mikeash.com/pyblog/friday-qa-2009-11-06-linking-and-install-names.html
 }
@@ -102,10 +106,8 @@ procedure TFPMTargetDarwin.Prepare;
 begin
   inherited;
 
-  writeln('prepare bundle at ', Product);
   FPMAssert(table.Contains('product'), 'Target '+Name+' must contain "product" key.');
 
-  // TODO: this could be a script we run so we don't need to the parent darwin thingy
   ForceDirectories(Product);
   ForceDirectories(Product.AddComponent('Contents'));
   ForceDirectories(Product.AddComponents(['Contents', 'MacOS']));
@@ -122,6 +124,8 @@ var
   output: string;
   build: integer;
 begin
+  inherited;
+
   if table.Contains('infoPlist') then
     begin
       path := ExpandPath(table['infoPlist']);
@@ -129,6 +133,7 @@ begin
       if Process.RunCommand('/usr/libexec/PlistBuddy', ['-c', 'Print :CFBundleVersion', path], output, []) then
         begin
           build := StrToInt(Trim(output)) + 1;
+          PrintColor(ANSI_FORE_MAGENTA, 'Build Number: '+build.ToString);
           Process.RunCommand('/usr/libexec/PlistBuddy', ['-c', 'Set :CFBundleVersion '+IntToStr(build), path], output, []);
         end;
     end;
@@ -138,12 +143,8 @@ end;
 
 function TFPMTargetConsole.GetProduct: string;
 begin
-  if table.Contains('executable') then
-    result := ExpandPath(table['executable'])
-  else
-    result := parent.GetProduct;
+  result := ExpandPath(table['executable']);
 end;
-
 
 { TFPMTarget }
 
@@ -202,6 +203,11 @@ begin
       RegisterScript(TFPMScript.Create(TTOMLTable(script)))
     else
       RegisterScript(TFPMScript.Create(string(script)));
+end;
+
+class function TFPMTarget.Find(_name: string): TFPMTargetClass;
+begin
+  result := TargetClasses[_name];
 end;
 
 class function TFPMTarget.InheritedFrom(_name: ShortString; _data: TTOMLTable; _parent: TFPMTarget): TFPMTarget;

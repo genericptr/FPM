@@ -2,7 +2,6 @@
 {$scopedenums on}
 {$modeswitch arrayoperators}
 {$modeswitch typehelpers}
-{$modeswitch multihelpers}
 {$H+}
 
 unit FPMUtils;
@@ -208,8 +207,6 @@ begin
     result := Copy(result, 1, pos(ext, result) - 1);
 end;
 
-
-
 function TStringFileHelpers.ExpandTilde: String;
 begin
   {$ifdef DARWIN}
@@ -318,7 +315,7 @@ begin
     Process.Environment.Add(GetEnvironmentString(i));
   process.Options := process.Options + [poWaitOnExit];
   process.Execute;
-  result := process.ExitCode;
+  result := process.ExitStatus;
   process.Free;
 end;
 
@@ -452,7 +449,7 @@ begin
       if isPath then
         begin
           path := Trim(ExpandPath(value));
-          FPMAssert(DirectoryExists(path), 'Directory "'+path+'" for flag '+flag+' doesn''t exist');
+          FPMAssert(path.ExistsAtPath, 'Path "'+path+'" for flag '+flag+' doesn''t exist');
           result += [flag+path];
         end
       else

@@ -13,6 +13,8 @@ uses
   FPMUtils;
 
 function CopyResources(source, destination: string): boolean;
+function CompareFileDates(oldPath, newPath: string): boolean;
+function CompileNIB(oldPath, newPath: string): boolean;
 
 implementation
 
@@ -24,9 +26,17 @@ var
   {$endif}
 begin
   {$ifdef DARWIN}
+  // use Cocoa so we copy any extended resource files
+  if Target.FileExists then
+    NSFileManager.defaultManager.removeItemAtPath_error(NSSTR(Target), nil);
   if not NSFileManager.defaultManager.copyItemAtPath_toPath_error(NSSTR(Source), NSSTR(Target), @error) then
-    writeln(error.localizedDescription.UTF8String);
+    begin
+      //PrintColor(ANSI_FORE_RED, error.localizedDescription.UTF8String);
+      FPMAssert(error.localizedDescription.UTF8String);
+      exit(false);
+    end;
   {$else}
+  // TODO: is this a valid method on Windows/Linux? not sure until I test
   result := false;
   MemBuffer := TMemoryStream.Create;
   try
@@ -40,7 +50,6 @@ begin
 end;
 
 (*
-
   function compile_metal ($src, $dest) {
     // xcrun -sdk macosx metal AAPLShaders.metal -o AAPLShaders.air
     // xcrun -sdk macosx metallib AAPLShaders.air -o AAPLShaders.metallib
@@ -69,9 +78,7 @@ end;
     // delete temporary .air file
     if (file_exists($air)) unlink($air);
   }
-
 }
-
 *)
 
 function CompareFileDates(oldPath, newPath: string): boolean;
@@ -84,8 +91,12 @@ end;
 
 function CompileMetalShader(oldPath, newPath: string): boolean;
 begin
-  //assert(false, 'compile metal shader not implemented');
-  FileSetDate(newPath, FileAge(oldPath));
+  // NOTE: Xcode usually compiles the .metal shader files to a .metallib file
+  // and places it at Contents/Resources/default.metallib ut we need to do this manually. 
+
+  // https://developer.apple.com/library/archive/documentation/Miscellaneous/Conceptual/MetalProgrammingGuide/Dev-Technique/Dev-Technique.html#//apple_ref/doc/uid/TP40014221-CH8-SW10
+  // xcrun -sdk macosx metal AAPLShaders.metal -o AAPLShaders.air
+  // xcrun -sdk macosx metallib AAPLShaders.air -o AAPLShaders.metallib
 end;
 
 function CompileNIB(oldPath, newPath: string): boolean;
@@ -97,7 +108,7 @@ begin
   if CompareFileDates(oldPath, newPath) then
     exit(false);
 
-  writeln('compile IB file from ', oldPath, ' to ', newPath);
+  PrintColor(ANSI_FORE_MAGENTA, 'Compile IB file from "'+oldPath+'" to "'+newPath+'"');
 
   result := Process.RunCommand('/usr/bin/ibtool', [
                 '--errors',
@@ -121,8 +132,9 @@ begin
   {$ifdef DARWIN}
   if extension = 'metal' then
     begin
-      result := CompileMetalShader(oldPath, newPath);
-      exit;
+      // TODO: compile metal shaders
+      //result := CompileMetalShader(oldPath, newPath);
+      //exit;
     end
   else if extension = 'xib' then
     begin
@@ -141,11 +153,12 @@ begin
     end;
   {$endif}
 
-  // file dates haven't changed
+  // file dates are different so copy the file
   if not CompareFileDates(oldPath, newPath) then
     begin
-      writeln('copy ', oldPath, ' to ', newPath);
-      FileCopy(oldPath, newPath);
+      PrintColor(ANSI_FORE_MAGENTA, 'Copy "'+oldPath+'" to "'+newPath+'"');
+      if not FileCopy(oldPath, newPath) then
+        exit(false);
       FileSetDate(newPath, FileAge(oldPath));
     end;
 

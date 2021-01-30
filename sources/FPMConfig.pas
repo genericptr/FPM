@@ -6,9 +6,9 @@
 unit FPMConfig;
 interface
 uses
+  SysUtils, Classes, RegExpr,
   FPMUtils, FPMTable, FPMTarget,
-  TOML, 
-  SysUtils, Classes, RegExpr;
+  TOML;
 
 const
   kConfigFileName = 'fpconfig.toml';
@@ -35,8 +35,9 @@ type
       target: TFPMTarget;
       configuration: TFPMTable;
       output: string;
-      executable: string;
+      m_executable: string;
 
+      function GetExecutable: string;
       function GetTarget: string;
       function GetConfiguration: string;
       function GetCommandLineForTable(table: TFPMTable): TStringArray;
@@ -50,6 +51,11 @@ type
       { Methods }
       function Execute(commandLine: TStringArray): integer;
       function GetCommandLine: TStringArray;
+      function GetProgramFile: string;
+      function GetOptionsFlags: TStringArray;
+
+      { Properties }
+      property Executable: string read GetExecutable write m_executable;
   end;
 
 implementation
@@ -78,11 +84,26 @@ begin
 
   // symbols
   result.AddValues(ArrayToFlags('-d', table.MergedArray('symbols'), false));
+
+  // linker flags
+  result.AddValues(ArrayToFlags('-k', table.MergedArray('linkerFlags'), false));
+end;
+
+function TFPMConfig.GetProgramFile: string;
+begin
+  result := ExpandPath(target.table['program']);
+end;
+
+function TFPMConfig.GetOptionsFlags: TStringArray;
+begin
+  result := [];
+  result.AddValues(GetCommandLineForTable(target.table));
+  result.AddValues(GetCommandLineForTable(configuration));
 end;
 
 function TFPMConfig.GetCommandLine: TStringArray;
 var
-  name: string;
+  name, path: string;
 begin
 
   // prepare the current target
@@ -97,9 +118,9 @@ begin
   if output <> '' then
     result += ['-FU'+output];
 
-  executable := ExpandPath(target.table['executable']);
-  if executable <> '' then
-    result += ['-o'+executable];
+  path := ExpandPath(target.table['executable']);
+  if path <> '' then
+    result += ['-o'+path];
 end;
 
 procedure TFPMConfig.PrintHeader; 
@@ -182,6 +203,25 @@ begin
     ExecuteProcess(executable, '', []);
 end;
 
+function TFPMConfig.GetExecutable: string;
+var
+  path, prog: string;
+begin
+
+  if target.table.Contains('executable') then
+    begin
+      path := ExpandPath(target.table['executable']);
+      if FileExists(path) then
+        exit(path);
+    end;
+
+  // if no executable was specified assume from the program name
+  prog := ExpandPath(target.table['program']);
+  path := prog.DirectoryPath.AddComponent(prog.FileNameOnly);
+  
+  result := path;
+end;
+
 function TFPMConfig.GetTarget: string;
 begin
   if GlobalSettings.target <> '' then
@@ -212,7 +252,11 @@ begin
   // we need this so that the target can inherit from the
   // [settings] table, which is like the "implicit" target
   // if no target was defined
-  target := TFPMTarget.Create('$default', settings.data, target);
+
+  if settings.Contains('parent') then
+    target := TFPMTarget.Find(string(settings['parent'])).Create('$default', settings.data, nil)
+  else
+    target := TFPMTarget.Create('$default', settings.data, nil);
 
   // load global variables
   GlobalVariables := document['variables'] as TTOMLTable;
@@ -275,6 +319,7 @@ var
   fullPath: string;
   paths: array of string;
 begin
+
   // if the path is a directory search for config file
   if DirectoryExists(path) then
     path := path+DirectorySeparator+kConfigFileName;
