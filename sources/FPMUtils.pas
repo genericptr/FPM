@@ -11,9 +11,19 @@ uses
   TOML;
 
 type
- TPlatform = (MacOSX,        
-              IPhoneSimulator,             
-              IPhoneOS);
+  EFPMError = class(Exception);
+
+type
+  TPlatform = (MacOSX,        
+               IPhoneSimulator,             
+               IPhoneOS);
+
+type
+  TFPMOption = (NoColor);
+  TFPMOptions = set of TFPMOption;
+
+var
+  FPMOptions: TFPMOptions = [];
 
 function GetLatestCompiler: ShortString;
 function GetSDK(platform: TPlatform): string;
@@ -337,16 +347,10 @@ begin
     input := ExpandFileName(ParamStr(1));
   
   if input = '' then
-    begin
-      writeln('FPM expects a valid directory or fpconfig.toml file.');
-      halt;
-    end;
+    FPMAssert('FPM expects a valid directory or fpconfig.toml file.');
 
   if not FileExists(input) and not DirectoryExists(input) then
-    begin
-      writeln('"'+input+'" does not exist. FPM expects a valid directory or fpconfig.toml file.');
-      halt;
-    end;
+    FPMAssert('"'+input+'" does not exist. FPM expects a valid directory or fpconfig.toml file.');
 
   result := input;
 end;
@@ -510,8 +514,7 @@ procedure FPMAssert(condition: boolean; message: string);
 begin
   if condition then
     exit;
-  PrintColor(ANSI_BACK_RED, message);
-  halt(-1);
+  raise EFPMError.Create(message);
 end;
 
 procedure FPMAssert(message: string);
@@ -521,7 +524,10 @@ end;
 
 procedure PrintColor(code: byte; str: ansistring);
 begin
-  PrintColor([code], str);
+  if TFPMOption.NoColor in FPMOptions then
+    writeln(str)
+  else
+    PrintColor([code], str);
 end;
 
 procedure PrintColor(codes: array of byte; str: ansistring);

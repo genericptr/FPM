@@ -41,6 +41,7 @@ type
       function GetTarget: string;
       function GetConfiguration: string;
       function GetCommandLineForTable(table: TFPMTable): TStringArray;
+      function GetPathFlags(table: TFPMTable): TStringArray;
 
       procedure Load;
       procedure PrintHeader;
@@ -52,7 +53,7 @@ type
       function Execute(commandLine: TStringArray): integer;
       function GetCommandLine: TStringArray;
       function GetProgramFile: string;
-      function GetOptionsFlags: TStringArray;
+      function GetCodeToolOptions: TStringArray;
 
       { Properties }
       property Executable: string read GetExecutable write m_executable;
@@ -61,6 +62,15 @@ type
 implementation
 
 {$include target.inc}
+
+function TFPMConfig.GetPathFlags(table: TFPMTable): TStringArray;
+begin
+  result := [];
+  result.AddValues(ArrayToFlags('-Fu', table['unitPaths'] as TTOMLArray));
+  result.AddValues(ArrayToFlags('-Fi', table['includePaths'] as TTOMLArray));
+  result.AddValues(ArrayToFlags('-Fl', table['libraryPaths'] as TTOMLArray));
+  result.AddValues(ArrayToFlags('-Ff', table['frameworkPaths'] as TTOMLArray));
+end;
 
 function TFPMConfig.GetCommandLineForTable(table: TFPMTable): TStringArray;
 var
@@ -74,10 +84,7 @@ begin
     exit;
 
   // paths
-  result.AddValues(ArrayToFlags('-Fu', table['unitPaths'] as TTOMLArray));
-  result.AddValues(ArrayToFlags('-Fi', table['includePaths'] as TTOMLArray));
-  result.AddValues(ArrayToFlags('-Fl', table['libraryPaths'] as TTOMLArray));
-  result.AddValues(ArrayToFlags('-Ff', table['frameworkPaths'] as TTOMLArray));
+  result.AddValues(GetPathFlags(table));
 
   // general options
   result.AddValues(table.MergedArray('options'));
@@ -94,11 +101,16 @@ begin
   result := ExpandPath(target.table['program']);
 end;
 
-function TFPMConfig.GetOptionsFlags: TStringArray;
+{ Flags which can be passed to Lazarus CodeTools (for Pascal Language Server) }
+function TFPMConfig.GetCodeToolOptions: TStringArray;
 begin
   result := [];
-  result.AddValues(GetCommandLineForTable(target.table));
-  result.AddValues(GetCommandLineForTable(configuration));
+
+  result.AddValues(GetPathFlags(target.table));
+  result.AddValues(GetPathFlags(configuration));
+
+  result.AddValues(ArrayToFlags('-d', target.table.MergedArray('symbols'), false));
+  result.AddValues(ArrayToFlags('-d', configuration.MergedArray('symbols'), false));
 end;
 
 function TFPMConfig.GetCommandLine: TStringArray;

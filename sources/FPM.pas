@@ -24,7 +24,12 @@ begin
 	if GetCommandLineArgument('run') then
 		GlobalSettings.run := true;
 
-  config := TFPMConfig.Create(GetInput);
-  exitCode := config.Execute(config.GetCommandLine);
-	halt(exitCode);
+	try
+	  config := TFPMConfig.Create(GetInput);
+	  exitCode := config.Execute(config.GetCommandLine);
+		halt(exitCode);
+	except
+	  on E: Exception do
+	    PrintColor(ANSI_BACK_RED, 'Error: '+E.Message);
+	end;
 end.
