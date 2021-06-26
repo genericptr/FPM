@@ -1,3 +1,10 @@
+{
+    Copyright (c) 2020 by Ryan Joseph
+
+    Shell script for config files
+
+    The file is part of the FPM package (https://github.com/genericptr/fpm)
+}
 {$mode objfpc}
 {$H+}
 {$scopedenums on}

@@ -1,3 +1,10 @@
+{
+    Copyright (c) 2020 by Ryan Joseph
+
+    This unit implements FPM config class
+
+    The file is part of the FPM package (https://github.com/genericptr/fpm)
+}
 {$mode objfpc}
 {$scopedenums on}
 {$modeswitch arrayoperators}
@@ -73,10 +80,6 @@ begin
 end;
 
 function TFPMConfig.GetCommandLineForTable(table: TFPMTable): TStringArray;
-var
-  value: TTOMLData;
-  list: TTOMLArray;
-  path: string;
 begin
   result := [];
   
@@ -115,7 +118,7 @@ end;
 
 function TFPMConfig.GetCommandLine: TStringArray;
 var
-  name, path: string;
+  path: string;
 begin
 
   // prepare the current target
@@ -147,13 +150,11 @@ end;
 
 function TFPMConfig.Execute(commandLine: TStringArray): integer;
 var
-  path,
-  parameter: string;
+  path: string;
   table: TFPMTable;
   compiler,
   &program: string;
   units: TStringArray;
-  i: integer;
 begin
   // default compiler paths
   {$if defined(DARWIN)}
@@ -327,9 +328,6 @@ begin
 end;
 
 constructor TFPMConfig.Create(path: string);
-var
-  fullPath: string;
-  paths: array of string;
 begin
 
   // if the path is a directory search for config file
@@ -345,28 +343,9 @@ begin
     on E: Exception do
       FPMAssert('Failed to parse TOML config file ('+E.ClassName+' '+E.Message+')');
   end;
-  //writeln(document.AsJSON.FormatJSON);
-
-  //paths := [];
-  //{$if defined(DARWIN)}
-  //paths := [
-  //  '~/'+kConfigFileName,
-  //  '~/.'+kConfigFileName
-  //];
-  //{$endif}
-
-  //for path in paths do
-  //  begin
-  //    fullPath := ExpandFileName(path);
-  //    if FileExists(fullPath) then
-  //      begin
-  //        // TODO: merge TOML documents together
-  //        //writeln('found default config at ', fullPath);
-  //        break;
-  //      end;
-  //  end;
-
+  
   Load;
 end;
+
 
 end.

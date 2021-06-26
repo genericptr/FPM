@@ -1,3 +1,10 @@
+{
+    Copyright (c) 2020 by Ryan Joseph
+
+    This unit implements the target class
+
+    The file is part of the FPM package (https://github.com/genericptr/fpm)
+}
 {$mode objfpc}
 {$modeswitch typehelpers}
 {$H+}

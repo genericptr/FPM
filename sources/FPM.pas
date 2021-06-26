@@ -1,5 +1,11 @@
+{
+    Copyright (c) 2020 by Ryan Joseph
+
+    Program file for the FPM command line utility
+
+    The file is part of the FPM package (https://github.com/genericptr/fpm)
+}
 {$mode objfpc}
-{$modeswitch advancedrecords}
 {$H+}
 
 program FPM;
