@@ -192,7 +192,14 @@ begin
     ForceDirectories(destination);
 
   if not source.DirectoryExists then
-    result := CopyFile(source, destination+DirectorySeparator+ExtractFileName(source))
+    begin
+      if destination.DirectoryExists then
+        result := CopyFile(source, destination+DirectorySeparator+ExtractFileName(source))
+      else if destination.FileExists then
+        result := CopyFile(source, destination)
+      else
+        exit(false);
+    end
   else
     begin
       // if source folder has trailing / than copy entire directory structure
