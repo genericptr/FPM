@@ -4,15 +4,23 @@
     Program file for the FPM command line utility
 
     The file is part of the FPM package (https://github.com/genericptr/fpm)
+
+    Command line options:
+
+      -target             Override target name.
+      -configuration      Override configuration name.
+      -run                Run the executable after building.
+      -exec               Run the executable without building (used for make files).
+      -bw                 Disable color output (black and white mode).
 }
 {$mode objfpc}
 {$H+}
 
 program FPM;
 uses
-	FPMConfig, FPMUtils,
-	TOML, 
-	SysUtils, Classes, DateUtils;
+  FPMConfig, FPMUtils,
+  TOML, 
+  SysUtils, Classes, DateUtils;
 
 var
   config: TFPMConfig;
@@ -20,22 +28,35 @@ var
   flag: string;
 begin
 
-	// set configuration overrides
-	if GetCommandLineArgument('target', flag) then
-		GlobalSettings.target := flag;
+  // set configuration overrides
+  if GetCommandLineArgument('target', flag) then
+    GlobalSettings.target := flag;
 
-	if GetCommandLineArgument('configuration', flag) then
-		GlobalSettings.configuration := flag;
+  if GetCommandLineArgument('configuration', flag) then
+    GlobalSettings.configuration := flag;
 
-	if GetCommandLineArgument('run') then
-		GlobalSettings.run := true;
+  if GetCommandLineArgument('run') then
+    GlobalSettings.run := true;
 
-	try
-	  config := TFPMConfig.Create(GetInput);
-	  exitCode := config.Execute(config.GetCommandLine);
-		halt(exitCode);
-	except
-	  on E: Exception do
-	    PrintColor(ANSI_BACK_RED, 'Error: '+E.Message);
-	end;
+  // black and white color mode
+  if GetCommandLineArgument('bw') then
+    FPMOptions += [TFPMOption.NoColor];
+
+  try
+    config := TFPMConfig.Create(GetInput);
+
+    if GetCommandLineArgument('exec') then
+      begin
+        Halt(ExecuteProcess(config.Executable, '', []));
+      end;
+
+    exitCode := config.Execute(config.GetCommandLine);
+    Halt(exitCode);
+  except
+    on E: Exception do
+      begin
+        PrintColor(ANSI_BACK_RED, 'Error: '+E.Message);
+        Halt(1);
+      end;
+  end;
 end.
