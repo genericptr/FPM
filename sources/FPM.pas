@@ -26,7 +26,23 @@ var
   config: TFPMConfig;
   exitCode: integer;
   flag: string;
+  help: TStringArray;
 begin
+  
+  // show help
+  if GetCommandLineArgument('help') or GetCommandLineArgument('h') then
+    begin
+      help := ['FPM supports the following options:',
+               '',
+               '  -target             Override target name.',
+               '  -configuration      Override configuration name.',
+               '  -run                Run the executable after building.',
+               '  -exec               Run the executable without building (used for make files).',
+               '  -bw                 Disable color output (black and white mode).'];
+
+      writeln(help.Join(#10));
+      halt(0);
+    end;
 
   // set configuration overrides
   if GetCommandLineArgument('target', flag) then

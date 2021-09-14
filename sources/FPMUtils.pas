@@ -105,7 +105,7 @@ type
   TStringArrayHelper = type helper for TStringArray
     procedure Add(value: String);
     procedure AddValues(other: TStringArray);
-    function Join(delimiter: ShortString = ''): String;
+    function Join(delimiter: ShortString = ' '): String;
   end;
 
 { TStringFileHelpers }
@@ -293,7 +293,7 @@ end;
 
 { TStringArrayHelper }
 
-function TStringArrayHelper.Join(delimiter: ShortString = ''): String;
+function TStringArrayHelper.Join(delimiter: ShortString ): String;
 var
   value: String;
 begin
@@ -301,7 +301,7 @@ begin
   for value in self do
     begin
       if result <> '' then
-        result += ' ';
+        result += delimiter;
       result += value;
     end;
 end;
