@@ -19,7 +19,8 @@ FPM uses [TOML](http://toml.io) config files to build an FPC command line in a d
   ]
   includePaths = []
   libraryPaths = []
-  
+  symbols = []
+
   compiler = "/usr/local/lib/fpc/${LATEST}/${ARCH}"
   program = "./sources/FPM.pas"
   output = './output'
@@ -39,11 +40,12 @@ FPM uses [TOML](http://toml.io) config files to build an FPC command line in a d
   options = ["-Xs", "-O2"]
 
 ```
-Features:
+🏆 Features:
 
 - Variables using Bash syntax
 - Targets
 - Configurations
+- Packaging for Darwin (.app bundle)
 
 ### How to install:
 
@@ -61,6 +63,5 @@ Features:
 
 ### 🛠 TODO:
 
- - Packaging for Darwin (.app bundle)
  - iOS targets with Xcode and tools integration
  - Inheritance from external files and default config file location
