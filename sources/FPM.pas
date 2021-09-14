@@ -45,6 +45,7 @@ begin
   try
     config := TFPMConfig.Create(GetInput);
 
+    // run the executable (used for makefiles)
     if GetCommandLineArgument('exec') then
       begin
         Halt(ExecuteProcess(config.Executable, '', []));

@@ -36,12 +36,9 @@ begin
   // use Cocoa so we copy any extended resource files
   if Target.FileExists then
     NSFileManager.defaultManager.removeItemAtPath_error(NSSTR(Target), nil);
-  if not NSFileManager.defaultManager.copyItemAtPath_toPath_error(NSSTR(Source), NSSTR(Target), @error) then
-    begin
-      //PrintColor(ANSI_FORE_RED, error.localizedDescription.UTF8String);
-      FPMAssert(error.localizedDescription.UTF8String);
-      exit(false);
-    end;
+  result := NSFileManager.defaultManager.copyItemAtPath_toPath_error(NSSTR(Source), NSSTR(Target), @error);
+  if not result then
+    FPMAssert(error.localizedDescription.UTF8String);
   {$else}
   // TODO: is this a valid method on Windows/Linux? not sure until I test
   result := false;
@@ -132,6 +129,7 @@ end;
 function CopyFile(oldPath, newPath: string): boolean;
 var
   extension: string;
+  contents: string;
 begin
   extension := oldPath.Extension;
   result := true;
@@ -166,6 +164,16 @@ begin
       PrintColor(ANSI_FORE_MAGENTA, 'Copy "'+oldPath+'" to "'+newPath+'"');
       if not FileCopy(oldPath, newPath) then
         exit(false);
+
+      {$ifdef DARWIN}
+      if extension = 'plist' then
+        begin
+         contents := GetFileAsString(oldPath);
+         contents := ReplaceVariables(contents);
+         PutFileContents(newPath, contents);
+        end;
+      {$endif}
+
       FileSetDate(newPath, FileAge(oldPath));
     end;
 

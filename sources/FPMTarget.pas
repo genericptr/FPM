@@ -115,6 +115,8 @@ begin
 
   FPMAssert(table.Contains('product'), 'Target '+Name+' must contain "product" key.');
 
+  // TODO: resources paths could force create directories also
+  // ${PRODUCT}/Contents/MacOS/${PROJECT_NAME} could create the /Contents and /MacOS folders
   ForceDirectories(Product);
   ForceDirectories(Product.AddComponent('Contents'));
   ForceDirectories(Product.AddComponents(['Contents', 'MacOS']));
@@ -130,6 +132,7 @@ var
   path: string;
   output: string;
   build: integer;
+  oldAge: longint;
 begin
   inherited;
 
@@ -141,7 +144,10 @@ begin
         begin
           build := StrToInt(Trim(output)) + 1;
           PrintColor(ANSI_FORE_MAGENTA, 'Build Number: '+build.ToString);
+          // update the bundle file date but keep the original date
+          oldAge := FileAge(path);
           Process.RunCommand('/usr/libexec/PlistBuddy', ['-c', 'Set :CFBundleVersion '+IntToStr(build), path], output, []);
+          FileSetDate(path, oldAge);
         end;
     end;
 end;

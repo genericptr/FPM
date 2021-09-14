@@ -86,6 +86,7 @@ function ArrayToFlags(flag: ShortString; data: TTOMLArray; isPath: boolean = tru
 procedure PrintColor(code: byte; str: ansistring);
 procedure PrintColor(codes: array of byte; str: ansistring);
 function GetFileAsString(const path: Ansistring): Ansistring;
+procedure PutFileContents(const path: Ansistring; contents: Ansistring);
 function FindAllFiles(path: string): TStringArray;
 
 { Command Line }
@@ -204,7 +205,7 @@ function TStringFileHelpers.Extension: ShortString;
 var
   ext: string;
 begin
-  result := ExtractFileExt(self);
+  result := LowerCase(ExtractFileExt(self));
   if result <> '' then
     result := Copy(result, 2, Length(result));
 end;
@@ -427,6 +428,16 @@ begin
   end;
 end;
 
+procedure PutFileContents(const path: Ansistring; contents: Ansistring);
+var
+  f: TextFile;
+begin
+  AssignFile(f, path);
+  Rewrite(f);
+  Write(f, contents);
+  CloseFile(f);
+end;
+
 function ArrayToFlags(flag: ShortString; strings: TStringArray; isPath: boolean): TStringArray;
 var
   value: string;
@@ -508,13 +519,12 @@ end;
 
 procedure ReplaceVariables(var arr: TStringArray);
 var
-  s, i: integer;
+  i: integer;
 begin
   if GlobalVariables = nil then
     exit;
-  for s := 0 to length(arr) - 1 do
-    for i := 0 to GlobalVariables.Count - 1 do
-      arr[s] := StringReplace(arr[s], '${'+GlobalVariables.Keys[i]+'}', GlobalVariables[i].ToString, [rfReplaceAll, rfIgnoreCase]);
+  for i := 0 to length(arr) - 1 do
+    arr[i] := ReplaceVariables(arr[i]);
 end;
 
 procedure FPMAssert(condition: boolean; message: string);

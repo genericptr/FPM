@@ -257,7 +257,8 @@ end;
 
 procedure TFPMConfig.Load;
 var
-  name: string;
+  name, value: string;
+  i: integer;
 begin
   settings := TFPMTable.Create(document['settings'] as TTOMLTable);
 
@@ -300,6 +301,13 @@ begin
 
       {$endif}
       Add('latest', GetLatestCompiler);
+    end;
+
+  // replace variables recursively
+  for i := 0 to GlobalVariables.Count - 1 do
+    begin
+      value := ReplaceVariables(String(GlobalVariables.Values[i]));
+      GlobalVariables[GlobalVariables.Keys[i]] := Variant(value);
     end;
 
   // get active target
