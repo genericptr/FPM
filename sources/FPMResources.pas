@@ -7,7 +7,9 @@
 }
 {$mode objfpc}
 {$modeswitch typehelpers}
+{$ifdef DARWIN}
 {$modeswitch objectivec2}
+{$endif}
 {$H+}
 
 unit FPMResources;
@@ -16,7 +18,10 @@ uses
   {$ifdef DARWIN}
   CocoaAll, MacOSAll,
   {$endif}
-  SysUtils, BaseUnix, Process, Classes,
+  {$ifdef UNIX}
+  BaseUnix,
+  {$endif}
+  SysUtils, Process, Classes,
   FPMUtils;
 
 function CopyResources(source, destination: string): boolean;

@@ -146,7 +146,6 @@ uses
 
 var
   LatestCompiler: ShortString = '';
-  PlatformSDK: string = '';
 
 { TStringFileHelpers }
 
@@ -628,9 +627,7 @@ const
       'iphoneos'
     );
 begin
-  if PlatformSDK = '' then
-    Process.RunCommand('/usr/bin/xcrun', ['--sdk', TSDKPlatformStrings[platform], '--show-sdk-path'], PlatformSDK);
-  result := PlatformSDK;
+  Process.RunCommand('/usr/bin/xcrun', ['--sdk', TSDKPlatformStrings[platform], '--show-sdk-path'], result);
 end;
 
 end.

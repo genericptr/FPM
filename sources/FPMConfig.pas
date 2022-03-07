@@ -73,10 +73,10 @@ implementation
 function TFPMConfig.GetPathFlags(table: TFPMTable): TStringArray;
 begin
   result := [];
-  result.AddValues(ArrayToFlags('-Fu', table['unitPaths'] as TTOMLArray));
-  result.AddValues(ArrayToFlags('-Fi', table['includePaths'] as TTOMLArray));
-  result.AddValues(ArrayToFlags('-Fl', table['libraryPaths'] as TTOMLArray));
-  result.AddValues(ArrayToFlags('-Ff', table['frameworkPaths'] as TTOMLArray));
+  result.AddValues(ArrayToFlags('-Fu', table.MergedArray('unitPaths')));
+  result.AddValues(ArrayToFlags('-Fi', table.MergedArray('includePaths')));
+  result.AddValues(ArrayToFlags('-Fl', table.MergedArray('libraryPaths')));
+  result.AddValues(ArrayToFlags('-Ff', table.MergedArray('frameworkPaths')));
 end;
 
 function TFPMConfig.GetCommandLineForTable(table: TFPMTable): TStringArray;
@@ -289,14 +289,21 @@ begin
       Add('platform', 'linux');
       {$endif}
 
-      {$ifdef darwin}
+      {$ifdef DARWIN}
       // TODO: this needs to be the target kind which is only macos for now
       Add('sdk', GetSDK(TPlatform.MacOSX));
-
+      // TODO: once we have these targets working only include these if the target is used
+      Add('ios-sdk', GetSDK(TPlatform.IPhoneOS));
+      Add('iphonesim-sdk', GetSDK(TPlatform.IPhoneSimulator));
       {$if defined(CPUX86_64)}
       Add('arch', 'ppcx64');
       {$elseif defined(CPUI386)}
       Add('arch', 'ppc386');
+      {$elseif defined(CPUAARCH64)}
+      Add('arch', 'ppca64');
+      {$else}
+      // undefined architecture
+      Add('arch', 'undefined');
       {$endif}
 
       {$endif}

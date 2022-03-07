@@ -14,7 +14,6 @@ interface
 uses
   TOML, SysUtils;
 
-
 type
   TMergeOption = (Expand, IsPath);
   TMergeOptions = set of TMergeOption;
@@ -42,7 +41,9 @@ type
   end;
 
 implementation
-
+uses
+  FPMUtils;
+  
 function TFPMTable.JoinArray(const key: TTOMLKeyType; delimiter: string): string;
 var
   value: string;
@@ -63,7 +64,7 @@ begin
     begin
       if table.data.Contains(key) then
         for value in table.data[key] as TTOMLArray do
-        result += [string(value)];
+          result += [ReplaceVariables(string(value))];
       table := table.parent;
     end;
 end;
