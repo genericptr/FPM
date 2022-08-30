@@ -61,10 +61,11 @@ begin
   try
     config := TFPMConfig.Create(GetInput);
 
-    // run the executable (used for makefiles)
+    // return the executable path (used for makefiles)
     if GetCommandLineArgument('exec') then
       begin
-        Halt(ExecuteProcess(config.Executable, '', []));
+        writeln(config.Executable);
+        Halt;
       end;
 
     exitCode := config.Execute(config.GetCommandLine);
