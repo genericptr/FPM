@@ -296,13 +296,17 @@ begin
       Add('ios-sdk', GetSDK(TPlatform.IPhoneOS));
       Add('iphonesim-sdk', GetSDK(TPlatform.IPhoneSimulator));
       {$if defined(CPUX86_64)}
-      Add('arch', 'ppcx64');
+      Add('ppc', 'ppcx64');
+      Add('arch', 'x86_64');
       {$elseif defined(CPUI386)}
-      Add('arch', 'ppc386');
+      Add('ppc', 'ppc386');
+      Add('arch', 'i386');
       {$elseif defined(CPUAARCH64)}
-      Add('arch', 'ppca64');
+      Add('ppc', 'ppca64');
+      Add('arch', 'aarch64');
       {$else}
-      // undefined architecture
+      // undefined cpu
+      Add('ppc', 'undefined');
       Add('arch', 'undefined');
       {$endif}
 
