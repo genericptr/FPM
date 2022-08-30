@@ -128,6 +128,7 @@ type
     function AddComponent(const component: String): String;
     function AddComponents(const components: array of String): String;
     function AddExtension(const name: String): String;
+    function Contains(character: Char): boolean;
   end;
 
 { Global variables for the active config }
@@ -201,8 +202,6 @@ begin
 end;
 
 function TStringFileHelpers.Extension: ShortString;
-var
-  ext: string;
 begin
   result := LowerCase(ExtractFileExt(self));
   if result <> '' then
@@ -288,6 +287,16 @@ end;
 function TStringFileHelpers.AddExtension(const name: String): String;
 begin
   result := self+ExtensionSeparator+name;
+end;
+
+function TStringFileHelpers.Contains(character: Char): boolean;
+var
+  i: integer;
+begin
+  result := false;
+  for i := 0 to High(self) do
+    if self[i] = character then
+      exit(true);
 end;
 
 { TStringArrayHelper }
@@ -449,7 +458,9 @@ begin
         begin
           path := ReplaceVariables(value);
           path := ExpandFileName(path);
-          FPMAssert(DirectoryExists(path), 'Directory "'+path+'" for flag '+flag+' doesn''t exist');
+          // ignore this warning for directories with * patterns
+          if not path.Contains('*') then
+            FPMAssert(path.ExistsAtPath, 'Path "'+path+'" for flag '+flag+' doesn''t exist');
           result += [flag+path];
         end
       else
