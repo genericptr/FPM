@@ -7,12 +7,13 @@
 }
 {$mode objfpc}
 {$modeswitch typehelpers}
+{$modeswitch arrayoperators}
 {$H+}
 
 unit FPMTarget;
 interface
 uses
-  SysUtils, FGL, Process,
+  SysUtils, StrUtils, FGL, Process,
   TOML, FPMTable, FPMScript, FPMUtils;
 
 type
@@ -41,6 +42,8 @@ type
       { Methods }
       procedure Prepare; virtual;
       procedure Finalize; virtual;
+      function Execute(compiler: String; const commandLine: TStringArray): integer; virtual;
+      function ExecutePath(path: String; compiler: String; const commandLine: TStringArray; silent: boolean = false): integer; virtual;
 
       { Properties }
       property Table: TFPMTable read m_table;
@@ -66,8 +69,15 @@ type
   { TFPMTargetLibrary }
 
   TFPMTargetLibrary = class(TFPMTarget)
+    function Execute(compiler: String; const commandLine: TStringArray): integer; override;
     procedure Finalize; override;
     function GetProduct: string; override;
+  end;
+
+  { TFPMTargetTests }
+
+  TFPMTargetTests = class(TFPMTarget)
+    function Execute(compiler: String; const commandLine: TStringArray): integer; override;
   end;
 
 implementation
@@ -77,11 +87,32 @@ uses
 var
   TargetClasses: TFPMTargetMap;
 
-{ TFPMTargetLibrary }
+{*****************************************************************************
+ *                             TFPMTargetLibrary
+ *****************************************************************************}
 
 function TFPMTargetLibrary.GetProduct: string;
 begin
   result := ExpandPath(table['product']);
+end;
+
+function TFPMTargetLibrary.Execute(compiler: String; const commandLine: TStringArray): integer;
+var
+  path: string;
+  units: TStringArray;
+begin
+  units := table.MergedArray('units');
+
+  // execute command for each unit
+  for path in units do
+    begin
+      result := ExecutePath(path, compiler, commandLine);
+      if result <> 0 then
+        exit;
+    end;
+
+  // execute the main program
+  inherited Execute(compiler, commandLine);
 end;
 
 procedure TFPMTargetLibrary.Finalize;
@@ -96,7 +127,79 @@ begin
   RunCommand('/bin/sh', ['-c', args.Join(' ')]);
 end;
 
-{ TFPMTargetDarwin }
+{*****************************************************************************
+ *                                TFPMTargetTests
+ *****************************************************************************}
+
+function TFPMTargetTests.Execute(compiler: String; const commandLine: TStringArray): integer;
+
+  procedure ShowResults(exitCode: Integer; shouldFail: Boolean; fileName: String); 
+  begin
+    if (shouldFail and (exitCode = 0)) or (not shouldFail and (exitCode <> 0)) then
+      begin
+        writeln('🔴 Test '+fileName+' failed!');
+      end
+    else
+      writeln('✅ Test '+fileName+' passed.')
+  end;
+
+var
+  fullPath, path, fileName, contents, executable: String;
+  paths, programs, lines, options: TStringArray;
+begin
+  result := 0;
+
+  // Remove the output executable options
+  options := ClearOption(commandLine, 'o');
+
+  // Add the temporary output executable path
+  executable := GetTempDir+'test.fpmbuild';
+  options.Add('-o'+executable);
+
+  paths := table.MergedArray('programs');
+
+  // Find all program files in the directories
+  programs := [];
+  for path in paths do
+    begin
+      fullPath := ExpandPath(path);
+      for fileName in FindAllFiles(fullPath) do
+        if fileName.Match('(pas|pp)$') then
+          programs += [fullPath.AddComponent(fileName)];
+    end;
+
+  FPMAssert(Length(programs) > 0, 'No program tests were found.');
+
+  // execute command for each unit
+  for path in programs do
+    begin
+      contents := GetFileAsString(path);
+      lines := SplitString(contents, #10);
+
+      result := ExecutePath(path, compiler, options, true);
+
+      case lines[0] of
+        '{%RUN}':
+          begin
+            if result <> 0 then
+              ShowResults(result, false, path.FileName)
+            else
+              begin
+                result := RunCommand(executable, [], true);
+                ShowResults(result, false, path.FileName);
+              end;
+          end;
+        '{%FAIL}':
+          ShowResults(result, true, path.FileName);
+        otherwise
+          ShowResults(result, false, path.FileName);
+      end;
+    end;
+end;
+
+{*****************************************************************************
+ *                              TFPMTargetDarwin
+ *****************************************************************************}
 
 {
   @rpath
@@ -152,14 +255,18 @@ begin
     end;
 end;
 
-{ TFPMTargetConsole }
+{*****************************************************************************
+ *                             TFPMTargetConsole
+ *****************************************************************************}
 
 function TFPMTargetConsole.GetProduct: string;
 begin
   result := ExpandPath(table['executable']);
 end;
 
-{ TFPMTarget }
+{*****************************************************************************
+ *                                TFPMTarget
+ *****************************************************************************}
 
 function TFPMTarget.GetProduct: string;
 begin
@@ -243,6 +350,20 @@ begin
     result := TFPMTarget.Create(_name, _data, _parent);
 end;
 
+function TFPMTarget.ExecutePath(path: String; compiler: String; const commandLine: TStringArray; silent: boolean): integer;
+begin
+  FPMAssert(FileExists(path), 'File "'+path+'" doesn''t exist');
+  if not silent then
+    PrintColor(ANSI_FORE_CYAN, compiler+' '+commandLine.Join(' ')+' '+path);
+  result := RunCommand(compiler, commandLine + [path], silent);
+end;
+
+function TFPMTarget.Execute(compiler: String; const commandLine: TStringArray): integer;
+begin
+  // execute the main program file
+  result := ExecutePath(ExpandPath(table['program']), compiler, commandLine);
+end;
+
 procedure TFPMTarget.Prepare;
 begin
 end;
@@ -277,4 +398,5 @@ begin
   TargetClasses.Add('console', TFPMTargetConsole);
   TargetClasses.Add('darwin', TFPMTargetDarwin);
   TargetClasses.Add('library', TFPMTargetLibrary);
+  TargetClasses.Add('tests', TFPMTargetTests);
 end.

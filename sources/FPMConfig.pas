@@ -150,11 +150,8 @@ end;
 
 function TFPMConfig.Execute(commandLine: TStringArray): integer;
 var
-  path: string;
   table: TFPMTable;
-  compiler,
-  &program: string;
-  units: TStringArray;
+  compiler: string;
 begin
   // default compiler paths
   {$if defined(DARWIN)}
@@ -173,11 +170,7 @@ begin
   if table.Contains('compiler') then
     compiler := ExpandPath(table['compiler']);
 
-  &program := ExpandPath(table['program']);
   output := ExpandPath(table['output']);
-
-  // units
-  units := table.MergedArray('units');
 
   // create output directories
   if output <> '' then
@@ -188,32 +181,14 @@ begin
       AddVariable('output', output);
     end;
 
-
-  // add main program to units
-  if Length(units) = 0 then
-    begin
-      FPMAssert(FileExists(&program), 'Program file "'+&program+'" doesn''t exist');
-      units := [&program];
-    end;
-
-  // print the header
   PrintHeader;
 
-  // execute command for each unit
-  for path in units do
-    begin
-      FPMAssert(FileExists(path), 'File "'+path+'" doesn''t exist');
-      PrintColor(ANSI_FORE_CYAN, compiler+' '+commandLine.Join(' ')+' '+path);
-      result := RunCommand(compiler, commandLine + [path]);
-      if result <> 0 then
-        exit;
-    end;
-
+  result := target.Execute(compiler, commandLine);
   target.Finalize;
 
   // run the executable
   if GlobalSettings.run and FileExists(executable) then
-    ExecuteProcess(executable, '', []);
+    ExecuteProcess(executable, '');
 end;
 
 function TFPMConfig.GetExecutable: string;

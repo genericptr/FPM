@@ -97,7 +97,8 @@ function GetCommandLineArgument(name: string): boolean; overload;
 
 { Commands }
 
-function RunCommand(Executable: String; Parameters: TStringArray): integer; overload;
+function RunCommand(Executable: String; Parameters: TStringArray; silent: Boolean = false): integer; overload;
+function ClearOption(options: TStringArray; name: ShortString): TStringArray;
 
 { TStringArrayHelper }
 
@@ -108,10 +109,22 @@ type
     function Join(delimiter: ShortString = ' '): String;
   end;
 
-{ TStringFileHelpers }
+{ TStringHelper }
+  
+  TStringHelper = type helper for String
+    function Length: integer; inline;
+    function ToInteger: integer; inline;
+    function ToSingle: single; inline;
+    function ToDouble: double; inline;
+    function ToFloat: single; inline;
+    function Replace(src: string; dest: string = ''): string;
+    function StartsWith(prefix: string): boolean;
+    function EndsWith(suffix: string): boolean;
+    function Contains(character: Char): boolean;
+    function Match(pattern: ShortString): boolean;
 
-type
-  TStringFileHelpers = type helper for String
+    { TStringFileHelper }
+
     function ExpandTilde: String;
     function Extension: ShortString;
     function ExistsAtPath: boolean;
@@ -128,7 +141,6 @@ type
     function AddComponent(const component: String): String;
     function AddComponents(const components: array of String): String;
     function AddExtension(const name: String): String;
-    function Contains(character: Char): boolean;
   end;
 
 { Global variables for the active config }
@@ -148,7 +160,9 @@ uses
 var
   LatestCompiler: ShortString = '';
 
-{ TStringFileHelpers }
+{*****************************************************************************
+ *                                 TStringFileHelpers
+ *****************************************************************************}
 
 {$ifdef DARWIN}
 
@@ -181,49 +195,49 @@ end;
 
 {$endif}
 
-function TStringFileHelpers.ChangeExtension(newExtension: ShortString): String;
+function TStringHelper.ChangeExtension(newExtension: ShortString): String;
 begin
   result := self.DeleteExtension.AddExtension(newExtension);
 end;
 
-function TStringFileHelpers.DeleteExtension: String;
+function TStringHelper.DeleteExtension: String;
 begin
   result := ExtractFilePath(self)+FileNameOnly;
 end;
 
-function TStringFileHelpers.DirectoryPath: String;
+function TStringHelper.DirectoryPath: String;
 begin
   result := ExtractFilePath(self);
 end;
 
-function TStringFileHelpers.TrailingPathDelimiter: boolean;
+function TStringHelper.TrailingPathDelimiter: boolean;
 begin
-  result := self[Length(self) - 1] = DirectorySeparator;
+  result := self[High(self)] = DirectorySeparator;
 end;
 
-function TStringFileHelpers.Extension: ShortString;
+function TStringHelper.Extension: ShortString;
 begin
   result := LowerCase(ExtractFileExt(self));
   if result <> '' then
-    result := Copy(result, 2, Length(result));
+    result := System.Copy(result, 2, System.Length(result));
 end;
 
-function TStringFileHelpers.FileName: ShortString;
+function TStringHelper.FileName: ShortString;
 begin
   result := ExtractFileName(self);
 end;
 
-function TStringFileHelpers.FileNameOnly: ShortString;
+function TStringHelper.FileNameOnly: ShortString;
 var
   ext: ShortString;
 begin
   result := ExtractFileName(self);
   ext := ExtractFileExt(result);
   if ext <> '' then
-    result := Copy(result, 1, pos(ext, result) - 1);
+    result := System.Copy(result, 1, Pos(ext, result) - 1);
 end;
 
-function TStringFileHelpers.ExpandTilde: String;
+function TStringHelper.ExpandTilde: String;
 begin
   {$ifdef DARWIN}
   result := StringReplace('~', GetUserDir, self, []);
@@ -232,7 +246,7 @@ begin
   {$endif}
 end;
 
-function TStringFileHelpers.IsHidden: boolean;
+function TStringHelper.IsHidden: boolean;
 var
   attrs: LongInt;
 begin
@@ -240,7 +254,7 @@ begin
   result := (attrs and faHidden) <> 0;
 end;
 
-function TStringFileHelpers.IsLink: boolean;
+function TStringHelper.IsLink: boolean;
 var
   attrs: LongInt;
 begin
@@ -248,7 +262,7 @@ begin
   result := (attrs and faSymLink) <> 0;
 end;
 
-function TStringFileHelpers.ExistsAtPath: boolean;
+function TStringHelper.ExistsAtPath: boolean;
 begin
   result := DirectoryExists;
   if result then
@@ -256,12 +270,12 @@ begin
   result := FileExists;
 end;
 
-function TStringFileHelpers.FileExists: boolean;
+function TStringHelper.FileExists: boolean;
 begin
   result := SysUtils.FileExists(self);
 end;
 
-function TStringFileHelpers.DirectoryExists: boolean;
+function TStringHelper.DirectoryExists: boolean;
 begin
   result := SysUtils.DirectoryExists(self);
   {$ifdef DARWIN}
@@ -270,12 +284,15 @@ begin
   {$endif}
 end;
 
-function TStringFileHelpers.AddComponent(const component: String): String;
+function TStringHelper.AddComponent(const component: String): String;
 begin
-  result := self+DirectorySeparator+component;
+  if TrailingPathDelimiter then
+    result := self+component
+  else
+    result := self+DirectorySeparator+component;
 end;
 
-function TStringFileHelpers.AddComponents(const components: array of String): String;
+function TStringHelper.AddComponents(const components: array of String): String;
 var
   component: string;
 begin
@@ -284,22 +301,14 @@ begin
     result := result.AddComponent(component);
 end;
 
-function TStringFileHelpers.AddExtension(const name: String): String;
+function TStringHelper.AddExtension(const name: String): String;
 begin
   result := self+ExtensionSeparator+name;
 end;
 
-function TStringFileHelpers.Contains(character: Char): boolean;
-var
-  i: integer;
-begin
-  result := false;
-  for i := 0 to High(self) do
-    if self[i] = character then
-      exit(true);
-end;
-
-{ TStringArrayHelper }
+{*****************************************************************************
+ *                            TStringArrayHelper
+ *****************************************************************************}
 
 function TStringArrayHelper.Join(delimiter: ShortString ): String;
 var
@@ -327,7 +336,107 @@ begin
   self := Concat(self, [value]);
 end;
 
-function RunCommand(Executable: String; Parameters: TStringArray): integer;
+{*****************************************************************************
+ *                                TStringHelper
+ *****************************************************************************}
+
+function TStringHelper.Length: integer;
+begin
+  result := System.Length(self);
+end;
+
+function TStringHelper.ToInteger: integer;
+begin
+  if System.Length(self) > 0 then
+    result := StrToInt(self)
+  else
+    result := 0;
+end;
+
+function TStringHelper.ToSingle: single;
+begin
+  result := StrToFloat(self);
+end;
+
+function TStringHelper.ToDouble: double;
+begin
+  result := StrToFloat(self);
+end;
+
+function TStringHelper.ToFloat: Single;
+begin
+  result := StrToFloat(self);
+end;
+  
+function TStringHelper.Replace (src: string; dest: string = ''): string;
+begin
+  result := StringReplace(self, src, dest, [rfReplaceAll]);
+end;
+
+function TStringHelper.StartsWith(prefix: string): boolean;
+var
+  i: longint;
+begin
+  result := true;
+  for i := 1 to prefix.Length do
+    if self[i] <> prefix[i] then
+      exit(false);
+end;
+
+function TStringHelper.EndsWith(suffix: string): boolean;
+var
+  i: integer;
+begin
+  result := true;
+  for i := 1 to suffix.Length do
+  if self[(Length+1) - i] <> suffix[(suffix.Length+1) - i] then
+    exit(false);
+end;
+
+function TStringHelper.Contains(character: Char): boolean;
+var
+  i: integer;
+begin
+  result := false;
+  for i := 0 to High(self) do
+    if self[i] = character then
+      exit(true);
+end;
+
+threadvar
+  SharedRegExpr: TRegExpr;
+
+function TStringHelper.Match(pattern: ShortString): boolean;
+begin
+  if (SharedRegExpr <> nil) and (SharedRegExpr.Expression <> pattern) then
+    begin
+      SharedRegExpr.Free;
+      SharedRegExpr := nil;
+    end;
+  if SharedRegExpr = nil then
+    SharedRegExpr := TRegExpr.Create(pattern);
+  result := SharedRegExpr.Exec(self);
+end;
+
+{*****************************************************************************
+ *                              Utilities
+ *****************************************************************************}
+
+{ Removes command line option by name }
+function ClearOption(options: TStringArray; name: ShortString): TStringArray;
+var
+  i: integer;
+begin
+  result := options;
+  for i := 0 to high(options) do
+    if options[i].StartsWith('-'+name) then
+      begin
+        Delete(result, i, 1);
+        break;
+      end;
+end;
+
+function RunCommand(Executable: String; Parameters: TStringArray; silent: Boolean): integer;
 var
   parameter: string;
   process: TProcess;
@@ -339,7 +448,11 @@ begin
     process.Parameters.Add(parameter);
   for i := 1 to GetEnvironmentVariableCount do
     Process.Environment.Add(GetEnvironmentString(i));
-  process.Options := process.Options + [poWaitOnExit];
+  // pipe output to nowhere in silent mode
+  if silent then
+    process.Options := process.Options + [poWaitOnExit, poUsePipes]
+  else
+    process.Options := process.Options + [poWaitOnExit];
   process.Execute;
   result := process.ExitStatus;
   process.Free;
@@ -610,12 +723,12 @@ begin
       for path in paths do
         begin
           list := TStringList.Create;
-          for name in FindAllFiles(path) do  
+          for name in FindAllFiles(path) do
             if re.Exec(name) then
               list.Add(name);
           list.Sort;
           version := list[list.Count - 1];
-          compiler := path+'/'+version;            
+          compiler := path+'/'+version;
           list.Free;
           if DirectoryExists(compiler) then
             begin
