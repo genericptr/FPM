@@ -106,6 +106,7 @@ begin
   // https://developer.apple.com/library/archive/documentation/Miscellaneous/Conceptual/MetalProgrammingGuide/Dev-Technique/Dev-Technique.html#//apple_ref/doc/uid/TP40014221-CH8-SW10
   // xcrun -sdk macosx metal AAPLShaders.metal -o AAPLShaders.air
   // xcrun -sdk macosx metallib AAPLShaders.air -o AAPLShaders.metallib
+  result := true;
 end;
 
 function CompileNIB(oldPath, newPath: string): boolean;
