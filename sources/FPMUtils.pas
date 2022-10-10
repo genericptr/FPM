@@ -18,7 +18,8 @@ uses
   TOML;
 
 type
-  EFPMError = class(Exception);
+  EFPMError = class(Exception);    // Fatal error we can't recover from
+  EFPMNotFound = class(Exception); // Config file not fond
 
 type
   TPlatform = (MacOSX,

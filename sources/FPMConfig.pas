@@ -329,7 +329,7 @@ begin
     path := path+DirectorySeparator+kConfigFileName;
 
   if (ExtractFileName(path) <> kConfigFileName) or not FileExists(path) then
-    FPMAssert('Config file "'+path+'" is invalid.');
+    raise EFPMNotFound.Create('Config file "'+path+'" is invalid.');
 
   try
     document := GetTOML(GetFileAsString(path));
