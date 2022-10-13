@@ -64,11 +64,11 @@ begin
     // return the executable path (used for makefiles)
     if GetCommandLineArgument('exec') then
       begin
-        writeln(config.Executable);
+        writeln(config.target.Executable);
         Halt;
       end;
 
-    exitCode := config.Execute(config.GetCommandLine);
+    exitCode := config.Execute;
     Halt(exitCode);
   except
     on E: Exception do

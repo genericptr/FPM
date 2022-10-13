@@ -40,6 +40,7 @@ FPM uses [TOML](http://toml.io) config files to build an FPC command line in a d
   options = ["-Xs", "-O2"]
 
 ```
+
 🏆 Features:
 
 - Variables using Bash syntax

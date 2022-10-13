@@ -25,7 +25,7 @@ type
   TPlatform = (MacOSX,
                IPhoneSimulator,
                IPhoneOS);
-
+  
 type
   TFPMOption = (NoColor);
   TFPMOptions = set of TFPMOption;
@@ -606,7 +606,9 @@ end;
 procedure AddVariable(name: ShortString; value: String); 
 begin
   if not GlobalVariables.Contains(name) then
-    GlobalVariables.Add(name, value);
+    GlobalVariables.Add(name, value)
+  else
+    GlobalVariables.Put(name, value);
 end;
 
 function ExpandValue(data: TTOMLData): string;
