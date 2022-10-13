@@ -112,7 +112,7 @@ type
 
 { TStringHelper }
   
-  TStringHelper = type helper for String
+  TStringHelper = type helper for AnsiString
     function Length: integer; inline;
     function ToInteger: integer; inline;
     function ToSingle: single; inline;
@@ -399,7 +399,7 @@ var
   i: integer;
 begin
   result := false;
-  for i := 0 to High(self) do
+  for i := 1 to Length do
     if self[i] = character then
       exit(true);
 end;
