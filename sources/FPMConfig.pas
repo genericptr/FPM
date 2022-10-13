@@ -8,6 +8,7 @@
 {$mode objfpc}
 {$scopedenums on}
 {$modeswitch arrayoperators}
+{$interfaces corba}
 {$H+}
 
 unit FPMConfig;
@@ -21,7 +22,11 @@ const
   kConfigFileName = 'fpconfig.toml';
 
 type
-  TConfigOption = (DryRrun, RunProgram, ANSIColors);
+  TConfigOption = (
+    DryRrun, 
+    RunProgram, 
+    ANSIColors
+  );
   TConfigOptions = set of TConfigOption;
 
   TGlobalSettings = record
@@ -35,74 +40,37 @@ var
   GlobalSettings: TGlobalSettings;
 
 type
-  TFPMConfig = class
+  TFPMConfig = class(IFPMConfig)
     private
       document: TTOMLDocument;
       settings: TFPMTable;
-      target: TFPMTarget;
+      m_target: TFPMTarget;
+      defaultTarget: TFPMTarget;
       configuration: TFPMTable;
-      output: string;
-      m_executable: string;
+      targets: TFPMTargetMap;
 
-      function GetExecutable: string;
       function GetTarget: string;
       function GetConfiguration: string;
-      function GetCommandLineForTable(table: TFPMTable): TStringArray;
-      function GetPathFlags(table: TFPMTable): TStringArray;
+      function GetActiveConfiguration: TFPMTable;
 
+      function FindTarget(name: String): TFPMTarget;
       procedure Load;
-      procedure PrintHeader;
     public
+      { Constructors }
       constructor Create(path: string);
       destructor Destroy; override;
 
       { Methods }
-      function Execute(commandLine: TStringArray): integer;
-      function GetCommandLine: TStringArray;
-      function GetProgramFile: string;
+      function Execute(target: TFPMTarget = nil): integer;
       function GetCodeToolOptions: TStringArray;
 
       { Properties }
-      property Executable: string read GetExecutable write m_executable;
+      property Target: TFPMTarget read m_target;
   end;
 
 implementation
 
 {$include target.inc}
-
-function TFPMConfig.GetPathFlags(table: TFPMTable): TStringArray;
-begin
-  result := [];
-  result.AddValues(ArrayToFlags('-Fu', table.MergedArray('unitPaths')));
-  result.AddValues(ArrayToFlags('-Fi', table.MergedArray('includePaths')));
-  result.AddValues(ArrayToFlags('-Fl', table.MergedArray('libraryPaths')));
-  result.AddValues(ArrayToFlags('-Ff', table.MergedArray('frameworkPaths')));
-end;
-
-function TFPMConfig.GetCommandLineForTable(table: TFPMTable): TStringArray;
-begin
-  result := [];
-  
-  if table = nil then
-    exit;
-
-  // paths
-  result.AddValues(GetPathFlags(table));
-
-  // general options
-  result.AddValues(table.MergedArray('options'));
-
-  // symbols
-  result.AddValues(ArrayToFlags('-d', table.MergedArray('symbols'), false));
-
-  // linker flags
-  result.AddValues(ArrayToFlags('-k', table.MergedArray('linkerFlags'), false));
-end;
-
-function TFPMConfig.GetProgramFile: string;
-begin
-  result := ExpandPath(target.table['program']);
-end;
 
 { Flags which can be passed to Lazarus CodeTools (for Pascal Language Server) }
 function TFPMConfig.GetCodeToolOptions: TStringArray;
@@ -116,98 +84,30 @@ begin
   result.AddValues(ArrayToFlags('-d', configuration.MergedArray('symbols'), false));
 end;
 
-function TFPMConfig.GetCommandLine: TStringArray;
-var
-  path: string;
+function TFPMConfig.Execute(target: TFPMTarget): integer;
+  
+  procedure PrintHeader(target: TFPMTarget); 
+  begin
+    if settings.Contains('target') then
+      PrintColor(ANSI_FORE_GREEN, 'Target: '+GetTarget);
+    if settings.Contains('configuration') then
+      PrintColor(ANSI_FORE_GREEN, 'Configuration: '+GetConfiguration);
+    if (target <> nil) and (target.Product <> '') then
+      PrintColor(ANSI_FORE_GREEN, 'Product: '+target.Product);
+  end;
+
 begin
+  // use default timer
+  if target = nil then
+    target := self.target;
 
-  // prepare the current target
-  target.Prepare;
+  PrintHeader(target);
 
-  result := [];
-
-  result.AddValues(GetCommandLineForTable(target.table));
-  result.AddValues(GetCommandLineForTable(configuration));
-
-  output := ExpandPath(target.table['output']);
-  if output <> '' then
-    result += ['-FU'+output];
-
-  path := ExpandPath(target.table['executable']);
-  if path <> '' then
-    result += ['-o'+path];
-end;
-
-procedure TFPMConfig.PrintHeader; 
-begin
-  if settings.Contains('target') then
-    PrintColor(ANSI_FORE_GREEN, 'Target: '+GetTarget);
-  if settings.Contains('configuration') then
-    PrintColor(ANSI_FORE_GREEN, 'Configuration: '+GetConfiguration);
-  if (target <> nil) and (target.Product <> '') then
-    PrintColor(ANSI_FORE_GREEN, 'Product: '+target.Product);
-end;
-
-function TFPMConfig.Execute(commandLine: TStringArray): integer;
-var
-  table: TFPMTable;
-  compiler: string;
-begin
-  // default compiler paths
-  {$if defined(DARWIN)}
-  compiler := '/usr/local/bin/fpc';
-  {$elseif defined(WINDOWS)}
-  // TODO: default path?
-  compiler := 'fpc';
-  {$elseif defined(LINUX)}
-  // TODO: default path?
-  compiler := 'fpc';
-  {$endif}
-
-  // get table for the active target
-  table := target.table;
-
-  if table.Contains('compiler') then
-    compiler := ExpandPath(table['compiler']);
-
-  output := ExpandPath(table['output']);
-
-  // create output directories
-  if output <> '' then
-    begin
-      if not DirectoryExists(output) then
-        ForceDirectories(output);
-      FPMAssert(DirectoryExists(output), 'Output directory '+output+' doesn''t exist');
-      AddVariable('output', output);
-    end;
-
-  PrintHeader;
-
-  result := target.Execute(compiler, commandLine);
-  target.Finalize;
+  result := target.Start(self);
 
   // run the executable
-  if GlobalSettings.run and FileExists(executable) then
-    ExecuteProcess(executable, '');
-end;
-
-function TFPMConfig.GetExecutable: string;
-var
-  path, prog: string;
-begin
-
-  if target.table.Contains('executable') then
-    begin
-      path := ExpandPath(target.table['executable']);
-      if FileExists(path) then
-        exit(path);
-    end;
-
-  // if no executable was specified assume from the program name
-  prog := ExpandPath(target.table['program']);
-  path := prog.DirectoryPath.AddComponent(prog.FileNameOnly);
-  
-  result := path;
+  if GlobalSettings.run and FileExists(target.executable) then
+    ExecuteProcess(target.executable, '');
 end;
 
 function TFPMConfig.GetTarget: string;
@@ -220,6 +120,11 @@ begin
     result := '';
 end;
 
+function TFPMConfig.GetActiveConfiguration: TFPMTable;
+begin
+  result := configuration;
+end;
+
 function TFPMConfig.GetConfiguration: string;
 begin
   if GlobalSettings.configuration <> '' then
@@ -230,22 +135,29 @@ begin
     result := '';
 end;
 
+function TFPMConfig.FindTarget(name: String): TFPMTarget;
+begin
+  if name = '' then
+    exit(defaultTarget);
+
+  if targets.TryGetData(name, result) then
+    exit;
+
+  FPMAssert(document.Contains('target'), 'Target table doesn''t exist.');
+  FPMAssert(TTOMLTable(document['target']).Contains(name), 'Target "'+name+'" table doesn''t exist in targets.');
+  AddVariable('target', name);
+
+  result := TFPMTarget.InheritedFrom(name, document['target'][name] as TTOMLTable, defaultTarget);
+
+  targets.Add(name, result);
+end;
+
 procedure TFPMConfig.Load;
 var
   name, value: string;
   i: integer;
 begin
   settings := TFPMTable.Create(document['settings'] as TTOMLTable);
-
-  // create the default target
-  // we need this so that the target can inherit from the
-  // [settings] table, which is like the "implicit" target
-  // if no target was defined
-
-  if settings.Contains('parent') then
-    target := TFPMTarget.Find(string(settings['parent'])).Create('$default', settings.data, nil)
-  else
-    target := TFPMTarget.Create('$default', settings.data, nil);
 
   // load global variables
   GlobalVariables := document['variables'] as TTOMLTable;
@@ -296,15 +208,19 @@ begin
       GlobalVariables[GlobalVariables.Keys[i]] := Variant(value);
     end;
 
+  // create the default target
+  // we need this so that the target can inherit from the
+  // [settings] table, which is like the "implicit" target
+  // if no target was defined
+
+  if settings.Contains('parent') then
+    defaultTarget := TFPMTarget.Find(string(settings['parent']))
+                               .Create('$default', settings.data, nil)
+  else
+    defaultTarget := TFPMTarget.Create('$default', settings.data, nil);
+
   // get active target
-  name := GetTarget;
-  if name <> '' then
-    begin
-      FPMAssert(document.Contains('target'), 'Target table doesn''t exist.');
-      FPMAssert(TTOMLTable(document['target']).Contains(name), 'Target "'+name+'" table doesn''t exist in targets.');
-      AddVariable('target', name);
-      target := TFPMTarget.InheritedFrom(name, document['target'][name] as TTOMLTable, target);
-    end;
+  m_target := FindTarget(GetTarget);
 
   // get active configuration
   name := GetConfiguration;
@@ -323,6 +239,7 @@ end;
 
 constructor TFPMConfig.Create(path: string);
 begin
+  targets := TFPMTargetMap.Create;
 
   // if the path is a directory search for config file
   if DirectoryExists(path) then
@@ -340,6 +257,5 @@ begin
   
   Load;
 end;
-
 
 end.

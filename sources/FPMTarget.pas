@@ -8,6 +8,7 @@
 {$mode objfpc}
 {$modeswitch typehelpers}
 {$modeswitch arrayoperators}
+{$interfaces corba}
 {$H+}
 
 unit FPMTarget;
@@ -17,9 +18,16 @@ uses
   TOML, FPMTable, FPMScript, FPMUtils;
 
 type
-  
-  { TFPMTarget }
+  TFPMTarget = class;
   TFPMTargetClass = class of TFPMTarget;
+
+  IFPMConfig = interface
+    function FindTarget(name: String): TFPMTarget;
+    function GetActiveConfiguration: TFPMTable;
+  end;
+
+  { TFPMTarget }
+  
   TFPMTarget = class
     private
       m_name: ShortString;
@@ -29,34 +37,41 @@ type
       procedure RegisterScript(script: TFPMScript);
       procedure LoadScripts;
       function GetProduct: string; virtual;
-      procedure RunScripts;
-      procedure CopyResources;
-    public
+      function GetExecutable: string;
+      function GetProgramFile: string;
 
-      { Constructors }
-      class function Find(_name: string): TFPMTargetClass;
-      class function InheritedFrom(_name: ShortString; _data: TTOMLTable; _parent: TFPMTarget): TFPMTarget;
-      constructor Create(_name: ShortString; _data: TTOMLTable; _parent: TFPMTarget);
-      destructor Destroy; override;
-
-      { Methods }
       procedure Prepare; virtual;
       procedure Finalize; virtual;
       function Execute(compiler: String; const commandLine: TStringArray): integer; virtual;
       function ExecutePath(path: String; compiler: String; const commandLine: TStringArray; silent: boolean = false): integer; virtual;
+      function RequiredKeys: TStringArray; virtual;
+
+      procedure RunScripts;
+      procedure CopyResources;
+    public
+      { Constructors }
+      class function Find(_name: string): TFPMTargetClass;
+      class function InheritedFrom(_name: ShortString; _data: TTOMLTable; _parent: TFPMTarget): TFPMTarget;
+      
+      constructor Create(_name: ShortString; _data: TTOMLTable; _parent: TFPMTarget);
+      destructor Destroy; override;
+
+      { Methods }
+      function Start(config: IFPMConfig): integer; virtual;
 
       { Properties }
       property Table: TFPMTable read m_table;
       property Name: ShortString read m_name;
       property Product: string read GetProduct;
+      property Executable: String read GetExecutable;
+      property ProgramFile: String read GetProgramFile;
   end;
-  TFPMTargetMap = specialize TFPGMap<ShortString, TFPMTargetClass>;
+  TFPMTargetMap = specialize TFPGMapObject<ShortString, TFPMTarget>;
+  TFPMTargetClassMap = specialize TFPGMap<ShortString, TFPMTargetClass>;
 
   { TFPMTargetConsole }
 
-  TFPMTargetConsole = class(TFPMTarget)
-    function GetProduct: string; override;
-  end;
+  TFPMTargetConsole = class(TFPMTarget);
 
   { TFPMTargetDarwin }
 
@@ -80,12 +95,29 @@ type
     function Execute(compiler: String; const commandLine: TStringArray): integer; override;
   end;
 
+  { TFPMTargetUniversal }
+
+  TFPMTargetUniversal = class(TFPMTarget)
+    function Start(config: IFPMConfig): integer; override;
+  end;
+
+function GetPathFlags(table: TFPMTable): TStringArray;
+
 implementation
 uses
   FPMResources;
 
 var
-  TargetClasses: TFPMTargetMap;
+  TargetClasses: TFPMTargetClassMap;
+
+function GetPathFlags(table: TFPMTable): TStringArray;
+begin
+  result := [];
+  result.AddValues(ArrayToFlags('-Fu', table.MergedArray('unitPaths')));
+  result.AddValues(ArrayToFlags('-Fi', table.MergedArray('includePaths')));
+  result.AddValues(ArrayToFlags('-Fl', table.MergedArray('libraryPaths')));
+  result.AddValues(ArrayToFlags('-Ff', table.MergedArray('frameworkPaths')));
+end;
 
 {*****************************************************************************
  *                             TFPMTargetLibrary
@@ -144,7 +176,7 @@ function TFPMTargetTests.Execute(compiler: String; const commandLine: TStringArr
   end;
 
 var
-  fullPath, path, fileName, contents, executable: String;
+  fullPath, path, fileName, contents, exec: String;
   paths, programs, lines, options: TStringArray;
 begin
   result := 0;
@@ -153,8 +185,8 @@ begin
   options := ClearOption(commandLine, 'o');
 
   // Add the temporary output executable path
-  executable := GetTempDir+'test.fpmbuild';
-  options.Add('-o'+executable);
+  exec := GetTempDir+'test.fpmbuild';
+  options.Add('-o'+exec);
 
   paths := table.MergedArray('programs');
 
@@ -185,7 +217,7 @@ begin
               ShowResults(result, false, path.FileName)
             else
               begin
-                result := RunCommand(executable, [], true);
+                result := RunCommand(exec, [], true);
                 ShowResults(result, false, path.FileName);
               end;
           end;
@@ -195,6 +227,49 @@ begin
           ShowResults(result, false, path.FileName);
       end;
     end;
+end;
+
+{*****************************************************************************
+ *                                TFPMTargetUniversal
+ *****************************************************************************}
+
+function TFPMTargetUniversal.Start(config: IFPMConfig): integer;
+var
+  targetName: String;
+  targets: TStringArray;
+  target: TFPMTarget;
+  options: array of String;
+  products: array of String;
+begin
+  {$if not defined(DARWIN)}
+  FPMAssert('Universal targret are only supported on macOS');
+  {$endif}
+
+  targets := table.MergedArray('targets');
+
+  FPMAssert(Length(targets) = 2, 'Universal targets must have 2 targets.');
+
+  products := [];
+  for targetName in targets do
+    begin
+      target := config.FindTarget(targetName);
+      result := target.Start(config);
+      if result <> 0 then
+        exit;
+      //config.Execute('targetName');
+      writeln('▶️ ',target.name, ' -> ', target.product);
+      products += [target.product];
+    end;
+
+  options := [
+    '-create',
+    products[0],
+    products[1],
+    '-output',
+    self.product
+  ];
+
+  result := RunCommand('/usr/bin/lipo', options);
 end;
 
 {*****************************************************************************
@@ -256,21 +331,36 @@ begin
 end;
 
 {*****************************************************************************
- *                             TFPMTargetConsole
- *****************************************************************************}
-
-function TFPMTargetConsole.GetProduct: string;
-begin
-  result := ExpandPath(table['executable']);
-end;
-
-{*****************************************************************************
  *                                TFPMTarget
  *****************************************************************************}
 
 function TFPMTarget.GetProduct: string;
 begin
-  result := '';
+  // the executable is the product by default
+  result := GetExecutable;
+end;
+
+function TFPMTarget.GetProgramFile: string;
+begin
+  result := ExpandPath(table['program']);
+end;
+
+function TFPMTarget.GetExecutable: string;
+var
+  path, prog: string;
+begin
+  if table.Contains('executable') then
+    begin
+      path := ExpandPath(table['executable']);
+      if FileExists(path) then
+        exit(path);
+    end;
+
+  // if no executable was specified assume from the program name
+  prog := ExpandPath(table['program']);
+  path := prog.DirectoryPath.AddComponent(prog.FileNameOnly);
+  
+  result := path;
 end;
 
 procedure TFPMTarget.RegisterScript(script: TFPMScript);
@@ -335,7 +425,6 @@ var
   targetClass: TFPMTargetClass;
   parentName: ShortString = '';
 begin
-  
   // get the taret parget
   targetClass := TFPMTarget;
   if _data.Contains('parent') then
@@ -347,12 +436,18 @@ begin
       result := TargetClasses[parentName].Create(_name, _data, _parent);
     end
   else
-    result := TFPMTarget.Create(_name, _data, _parent);
+    begin
+      // use the table name as the implicit target type
+      if TargetClasses.IndexOf(_name) <> -1 then
+        result := TargetClasses[_name].Create(_name, _data, _parent)
+      else
+        result := TFPMTarget.Create(_name, _data, _parent);
+    end;
 end;
 
 function TFPMTarget.ExecutePath(path: String; compiler: String; const commandLine: TStringArray; silent: boolean): integer;
 begin
-  FPMAssert(FileExists(path), 'File "'+path+'" doesn''t exist');
+  FPMAssert(FileExists(path), 'Program/unit to execute "'+path+'" doesn''t exist');
   if not silent then
     PrintColor(ANSI_FORE_CYAN, compiler+' '+commandLine.Join(' ')+' '+path);
   result := RunCommand(compiler, commandLine + [path], silent);
@@ -362,6 +457,13 @@ function TFPMTarget.Execute(compiler: String; const commandLine: TStringArray): 
 begin
   // execute the main program file
   result := ExecutePath(ExpandPath(table['program']), compiler, commandLine);
+end;
+
+function TFPMTarget.RequiredKeys: TStringArray;
+begin
+  result := [
+    'program'
+  ];
 end;
 
 procedure TFPMTarget.Prepare;
@@ -374,6 +476,85 @@ begin
   RunScripts;
 end;
 
+function TFPMTarget.Start(config: IFPMConfig): integer;
+
+  function GetCommandLineForTable(table: TFPMTable): TStringArray;
+  begin
+    result := [];
+    
+    if table = nil then
+      exit;
+
+    // paths
+    result.AddValues(GetPathFlags(table));
+
+    // general options
+    result.AddValues(table.MergedArray('options'));
+
+    // symbols
+    result.AddValues(ArrayToFlags('-d', table.MergedArray('symbols'), false));
+
+    // linker flags
+    result.AddValues(ArrayToFlags('-k', table.MergedArray('linkerFlags'), false));
+  end;
+
+  function GetCommandLine: TStringArray;
+  var
+    path, output: string;
+  begin
+    result := [];
+
+    result.AddValues(GetCommandLineForTable(table));
+    result.AddValues(GetCommandLineForTable(config.GetActiveConfiguration));
+
+    output := ExpandPath(table['output']);
+    if output <> '' then
+      result += ['-FU'+output];
+
+    path := ExpandPath(table['executable']);
+    if path <> '' then
+      result += ['-o'+path];
+  end;
+
+var
+  compiler, output: string;
+begin
+  // set the target variable before running
+  AddVariable('target', name);
+
+  output := ExpandPath(table['output']);
+
+  // create output directories
+  if output <> '' then
+    begin
+      if not DirectoryExists(output) then
+        ForceDirectories(output);
+      FPMAssert(DirectoryExists(output), 'Output directory '+output+' doesn''t exist');
+      AddVariable('output', output);
+    end;
+
+  // prepare the current target
+  Prepare;
+
+  // default compiler paths
+  {$if defined(DARWIN)}
+  compiler := '/usr/local/bin/fpc';
+  {$elseif defined(WINDOWS)}
+  // TODO: default path?
+  compiler := 'fpc';
+  {$elseif defined(LINUX)}
+  // TODO: default path?
+  compiler := 'fpc';
+  {$endif}
+
+  if table.Contains('compiler') then
+    compiler := ExpandPath(table['compiler']);
+
+  result := Execute(compiler, GetCommandLine);
+
+  Finalize;
+end;
+
 destructor TFPMTarget.Destroy;
 begin
   FreeAndNil(scripts);
@@ -382,6 +563,8 @@ begin
 end;
 
 constructor TFPMTarget.Create(_name: ShortString; _data: TTOMLTable; _parent: TFPMTarget);
+var
+  key: String;
 begin
   m_name := _name;
   parent := _parent;
@@ -391,12 +574,27 @@ begin
     m_table := TFPMTable.Create(_data, nil);
   if table.Contains('scripts') then
     LoadScripts;
+
+  // verify required keys exist
+  for key in RequiredKeys do
+    FPMAssert(table.Contains(key), 'Target "'+name+'" must contain "'+key+'" key.');
+
+  // verify target platform exists
+  {$if defined(DARWIN)}
+
+  {$elseif defined(WINDOWS)}
+  {$elseif defined(LINUX)}
+  {$endif}
+
 end;
 
 begin
-  TargetClasses := TFPMTargetMap.Create;
+  TargetClasses := TFPMTargetClassMap.Create;
+
+  { Register target classes }
   TargetClasses.Add('console', TFPMTargetConsole);
   TargetClasses.Add('darwin', TFPMTargetDarwin);
   TargetClasses.Add('library', TFPMTargetLibrary);
   TargetClasses.Add('tests', TFPMTargetTests);
+  TargetClasses.Add('universal', TFPMTargetUniversal);
 end.
