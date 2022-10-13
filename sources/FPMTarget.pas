@@ -256,8 +256,6 @@ begin
       result := target.Start(config);
       if result <> 0 then
         exit;
-      //config.Execute('targetName');
-      writeln('▶️ ',target.name, ' -> ', target.product);
       products += [target.product];
     end;
 
