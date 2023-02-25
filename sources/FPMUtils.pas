@@ -716,10 +716,11 @@ var
 begin
   if LatestCompiler = '' then
     begin
-      {$ifdef darwin}
+      {$if defined(DARWIN)}
       paths := ['/usr/local/lib/fpc'];
+      {$elseif defined(WINDOWS)}
+      paths := ['c:\FPC'];
       {$else}
-      // TODO: find latest compiler for other platforms
       exit('');
       {$endif}
       re := TRegExpr.Create('^\d+\.\d+\.\d+$');

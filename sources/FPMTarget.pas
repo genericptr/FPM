@@ -81,6 +81,11 @@ type
     procedure Finalize; override;
   end;
 
+  { TFPMTargetWindows }
+
+  TFPMTargetWindows = class(TFPMTarget)
+  end;
+
   { TFPMTargetLibrary }
 
   TFPMTargetLibrary = class(TFPMTarget)
@@ -426,7 +431,10 @@ begin
   // get the taret parget
   targetClass := TFPMTarget;
   if _data.Contains('parent') then
-    parentName := LowerCase(ShortString(_data['parent']));
+    begin
+      parentName := ReplaceVariables(ShortString(_data['parent']));
+      parentName := LowerCase(parentName);
+    end;
 
   if parentName <> '' then
     begin
@@ -453,6 +461,8 @@ end;
 
 function TFPMTarget.Execute(compiler: String; const commandLine: TStringArray): integer;
 begin
+  FPMAssert(FileExists(compiler), 'Compiler "'+compiler+'" doesn''t exist');
+
   // execute the main program file
   result := ExecutePath(ExpandPath(table['program']), compiler, commandLine);
 end;
@@ -534,19 +544,22 @@ begin
   // prepare the current target
   Prepare;
 
-  // default compiler paths
-  {$if defined(DARWIN)}
-  compiler := '/usr/local/bin/fpc';
-  {$elseif defined(WINDOWS)}
-  // TODO: default path?
-  compiler := 'fpc';
-  {$elseif defined(LINUX)}
-  // TODO: default path?
-  compiler := 'fpc';
-  {$endif}
-
   if table.Contains('compiler') then
-    compiler := ExpandPath(table['compiler']);
+    compiler := ExpandPath(table['compiler'])
+  else
+    begin
+      // default compiler paths
+      {$if defined(DARWIN)}
+      compiler := '/usr/local/bin/fpc';
+      {$elseif defined(WINDOWS)}
+      compiler := '${FPC_ROOT}/${LATEST}/bin/${ARCH}-win32/${PPC}.exe';
+      {$elseif defined(LINUX)}
+      compiler := '/usr/local/bin/fpc';
+      {$endif}
+
+      compiler := ReplaceVariables(compiler);
+      compiler := ExpandPath(compiler);
+    end;
 
   result := Execute(compiler, GetCommandLine);
 
@@ -576,14 +589,6 @@ begin
   // verify required keys exist
   for key in RequiredKeys do
     FPMAssert(table.Contains(key), 'Target "'+name+'" must contain "'+key+'" key.');
-
-  // verify target platform exists
-  {$if defined(DARWIN)}
-
-  {$elseif defined(WINDOWS)}
-  {$elseif defined(LINUX)}
-  {$endif}
-
 end;
 
 begin
@@ -592,6 +597,7 @@ begin
   { Register target classes }
   TargetClasses.Add('console', TFPMTargetConsole);
   TargetClasses.Add('darwin', TFPMTargetDarwin);
+  TargetClasses.Add('windows', TFPMTargetWindows);
   TargetClasses.Add('library', TFPMTargetLibrary);
   TargetClasses.Add('tests', TFPMTargetTests);
   TargetClasses.Add('universal', TFPMTargetUniversal);

@@ -176,12 +176,18 @@ begin
       Add('platform', 'linux');
       {$endif}
 
-      {$ifdef DARWIN}
-      // TODO: this needs to be the target kind which is only macos for now
-      Add('sdk', GetSDK(TPlatform.MacOSX));
-      // TODO: once we have these targets working only include these if the target is used
-      Add('ios-sdk', GetSDK(TPlatform.IPhoneOS));
-      Add('iphonesim-sdk', GetSDK(TPlatform.IPhoneSimulator));
+      // compiler install path
+      {$if defined(DARWIN)}
+      Add('fpc_root', '/usr/local/bin');
+      {$elseif defined(WINDOWS)}
+      Add('fpc_root', 'C:\FPC');
+      {$elseif defined(LINUX)}
+      Add('fpc_root', '/usr/local/bin');
+      {$endif}
+
+      // Compiler defines during compilation
+      // https://www.freepascal.org/docs-html/prog/progap7.html
+
       {$if defined(CPUX86_64)}
       Add('ppc', 'ppcx64');
       Add('arch', 'x86_64');
@@ -192,12 +198,18 @@ begin
       Add('ppc', 'ppca64');
       Add('arch', 'aarch64');
       {$else}
-      // undefined cpu
       Add('ppc', 'undefined');
       Add('arch', 'undefined');
       {$endif}
 
+      {$if defined(DARWIN)}
+      // TODO: this needs to be the target kind which is only macos for now
+      Add('sdk', GetSDK(TPlatform.MacOSX));
+      // TODO: once we have these targets working only include these if the target is used
+      Add('ios-sdk', GetSDK(TPlatform.IPhoneOS));
+      Add('iphonesim-sdk', GetSDK(TPlatform.IPhoneSimulator));
       {$endif}
+
       Add('latest', GetLatestCompiler);
     end;
 
